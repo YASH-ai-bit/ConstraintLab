@@ -1,0 +1,6 @@
+node_modules/
+dist/
+public/highs.wasm
+.sites-scaffold/
+*.tar.gz
+*.log
