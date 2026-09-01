@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
   AlertTriangle,
   Bot,
@@ -11,6 +12,8 @@ import {
   Clock3,
   Cpu,
   Gauge,
+  GripHorizontal,
+  GripVertical,
   LoaderCircle,
   Play,
   RotateCcw,
@@ -34,6 +37,52 @@ const RESOURCE_COLORS: Record<string, string> = {
   "machine-3": "#526944",
   "machine-4": "#5d5685",
 };
+
+const DEFAULT_LAYOUT = { left: 252, right: 330, audit: 188 };
+const LAYOUT_LIMITS = {
+  left: { min: 216, max: 360 },
+  right: { min: 284, max: 440 },
+  audit: { min: 132, max: 330 },
+};
+
+type ResizeTarget = keyof typeof DEFAULT_LAYOUT;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+function ResizeHandle({
+  target,
+  value,
+  onPointerDown,
+  onKeyDown,
+  onReset,
+}: {
+  target: ResizeTarget;
+  value: number;
+  onPointerDown: (target: ResizeTarget, event: ReactPointerEvent<HTMLDivElement>) => void;
+  onKeyDown: (target: ResizeTarget, event: ReactKeyboardEvent<HTMLDivElement>) => void;
+  onReset: (target: ResizeTarget) => void;
+}) {
+  const horizontal = target === "audit";
+  const label = target === "left" ? "Resize jobs panel" : target === "right" ? "Resize inspector panel" : "Resize audit timeline";
+  return (
+    <div
+      className={`resize-handle resize-${target}`}
+      role="separator"
+      aria-label={label}
+      aria-orientation={horizontal ? "horizontal" : "vertical"}
+      aria-valuemin={LAYOUT_LIMITS[target].min}
+      aria-valuemax={LAYOUT_LIMITS[target].max}
+      aria-valuenow={value}
+      tabIndex={0}
+      title={`${label} · double-click to reset`}
+      onPointerDown={(event) => onPointerDown(target, event)}
+      onKeyDown={(event) => onKeyDown(target, event)}
+      onDoubleClick={() => onReset(target)}
+    >
+      <span>{horizontal ? <GripHorizontal size={14} /> : <GripVertical size={14} />}</span>
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: SolveStatus }) {
   return (
@@ -108,6 +157,9 @@ function GanttChart() {
   const affectedIds = new Set(selectedConstraint ? affectedJobIds(selectedConstraint) : []);
   const deadlineConstraints = state.constraints.filter((constraint) => constraint.enabled && constraint.type === "deadline");
   const conflicts = state.infeasibility?.conflicts ?? [];
+  const primaryConflict = conflicts[0];
+  const stale = state.solvedModelVersion !== undefined && state.modelVersion !== state.solvedModelVersion;
+  const makespan = state.objectiveValue === undefined ? undefined : formatTime(Math.round(state.objectiveValue));
   const ticks = Array.from({ length: 11 }, (_, index) => TIME_START + index * 60);
   const pct = (value: number) => `${((value - TIME_START) / (TIME_END - TIME_START)) * 100}%`;
   const windowsFor = (resource: Resource) => [
@@ -117,7 +169,33 @@ function GanttChart() {
 
   return (
     <section className="panel gantt-panel">
-      <PanelTitle eyebrow="LIVE SOLUTION" title="Resource schedule" action={<div className="legend"><span><i className="legend-block" /> Job</span><span><i className="legend-down" /> Downtime</span><span><i className="legend-deadline" /> Deadline</span></div>} />
+      <PanelTitle
+        eyebrow="LIVE SOLUTION"
+        title="Resource schedule"
+        action={
+          <div className="gantt-title-tools">
+            <div className={`makespan-chip ${state.solveStatus === "INFEASIBLE" ? "unavailable" : ""}`}>
+              <Clock3 size={13} />
+              <span><small>MAKESPAN</small><strong>{makespan ?? "—"}</strong></span>
+            </div>
+            <div className="legend"><span><i className="legend-block" /> Job</span><span><i className="legend-down" /> Downtime</span><span><i className="legend-deadline" /> Deadline</span></div>
+          </div>
+        }
+      />
+      {stale && (
+        <div className="workspace-notice notice-warning" role="status">
+          <AlertTriangle size={15} />
+          <div><strong>Schedule is out of date</strong><span>Model v{state.modelVersion} has changes that are not reflected in the Gantt chart.</span></div>
+          <button onClick={() => void state.solveProblem("human")}>Re-solve now</button>
+        </div>
+      )}
+      {state.solveStatus === "INFEASIBLE" && primaryConflict && (
+        <div className="workspace-notice notice-danger" role="alert">
+          <AlertTriangle size={15} />
+          <div><strong>No feasible schedule</strong><span>{primaryConflict.summary}</span></div>
+          <button onClick={() => state.selectJob(primaryConflict.jobIds[0])}>Inspect conflict</button>
+        </div>
+      )}
       <div className="gantt-wrap">
         <div className="gantt-axis-label">RESOURCE</div>
         <div className="gantt-axis">
@@ -171,6 +249,7 @@ function GanttChart() {
         <span><Clock3 size={14} /> Horizon <strong>8:00 AM–6:00 PM</strong></span>
         <span><Gauge size={14} /> Objective <strong>Minimize makespan</strong></span>
         <span><Cpu size={14} /> Engine <strong>HiGHS MILP</strong></span>
+        {state.solveTimeMs !== undefined && <span className="runtime-summary">Runtime <strong>{state.solveTimeMs.toFixed(0)} ms</strong></span>}
       </div>
     </section>
   );
@@ -276,21 +355,81 @@ function AuditTimeline() {
 
 export function App() {
   const state = useConstraintLab((value) => value);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const [layout, setLayout] = useState(DEFAULT_LAYOUT);
   const stale = state.solvedModelVersion !== undefined && state.modelVersion !== state.solvedModelVersion;
   const headerMessage = useMemo(() => stale ? "Model changed — re-solve required." : state.solveStatus === "INFEASIBLE" ? "Conflict detected — inspect constraints." : state.solveStatus === "UNSOLVED" ? "Ready for a deterministic solve." : `Solved model v${state.solvedModelVersion}.`, [stale, state.solveStatus, state.solvedModelVersion]);
+  const resetPanelSize = (target: ResizeTarget) => setLayout((current) => ({ ...current, [target]: DEFAULT_LAYOUT[target] }));
+  const handleResizeKey = (target: ResizeTarget, event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Home") {
+      event.preventDefault();
+      resetPanelSize(target);
+      return;
+    }
+    const direction = target === "audit"
+      ? event.key === "ArrowUp" ? 1 : event.key === "ArrowDown" ? -1 : 0
+      : target === "left"
+        ? event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
+        : event.key === "ArrowLeft" ? 1 : event.key === "ArrowRight" ? -1 : 0;
+    if (!direction) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 32 : 12;
+    setLayout((current) => ({ ...current, [target]: clamp(current[target] + direction * step, LAYOUT_LIMITS[target].min, LAYOUT_LIMITS[target].max) }));
+  };
+  const startResize = (target: ResizeTarget, event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const handle = event.currentTarget;
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initial = layout[target];
+    handle.setPointerCapture(pointerId);
+    document.body.classList.add("is-resizing", `resizing-${target}`);
+    const onMove = (moveEvent: PointerEvent) => {
+      const rawDelta = target === "left"
+        ? moveEvent.clientX - startX
+        : target === "right"
+          ? startX - moveEvent.clientX
+          : startY - moveEvent.clientY;
+      setLayout((current) => ({ ...current, [target]: clamp(initial + rawDelta, LAYOUT_LIMITS[target].min, LAYOUT_LIMITS[target].max) }));
+    };
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      document.body.classList.remove("is-resizing", `resizing-${target}`);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+  };
+  const workspaceStyle = {
+    "--left-panel-width": `${layout.left}px`,
+    "--right-panel-width": `${layout.right}px`,
+    "--audit-panel-height": `${layout.audit}px`,
+  } as CSSProperties;
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><div className="brand-mark"><Wrench size={17} /></div><div><strong>ConstraintLab</strong><span>OPTIMIZATION WORKSPACE</span></div></div>
-        <div className="scenario"><span>SCENARIO</span><strong>Factory Scheduling</strong><small>15 jobs · 4 machines · makespan</small></div>
-        <div className="top-status"><div><StatusBadge status={state.solveStatus} /><span className={stale ? "stale-text" : ""}>{headerMessage}</span></div><span className="version-chip">MODEL v{state.modelVersion}</span></div>
+        <div className="scenario"><span>SCENARIO</span><strong>Factory Scheduling</strong><small>{state.jobs.length} jobs · {state.resources.length} machines · {state.constraints.filter((item) => item.enabled).length} constraints</small></div>
+        <div className={`top-status ${stale ? "is-stale" : ""}`} aria-live="polite"><StatusBadge status={state.solveStatus} /><div className="top-status-copy"><strong>{headerMessage}</strong><span>{state.objective.type === "makespan" ? "Minimize makespan" : state.objective.type}</span></div><span className="version-chip">MODEL v{state.modelVersion}</span></div>
         <button className="reset-button" title="Reset demo scenario" onClick={state.resetScenario}><RotateCcw size={15} /></button>
         <button className="solve-button" disabled={state.solveStatus === "SOLVING"} onClick={() => void state.solveProblem("human")}>
           {state.solveStatus === "SOLVING" ? <LoaderCircle className="spin" size={16} /> : <Play size={15} fill="currentColor" />} {state.solveStatus === "SOLVING" ? "SOLVING" : "SOLVE"}
           <kbd>⌘↵</kbd>
         </button>
       </header>
-      <main className="workspace"><JobsPanel /><GanttChart /><InspectorPanel /><AuditTimeline /></main>
+      <main className="workspace" ref={workspaceRef} style={workspaceStyle}>
+        <JobsPanel />
+        <ResizeHandle target="left" value={layout.left} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+        <GanttChart />
+        <ResizeHandle target="right" value={layout.right} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+        <InspectorPanel />
+        <ResizeHandle target="audit" value={layout.audit} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+        <AuditTimeline />
+      </main>
     </div>
   );
 }
