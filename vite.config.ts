@@ -15,7 +15,18 @@ export default defineConfig({
         this.emitFile({
           type: "asset",
           fileName: "server/index.js",
-          source: "export default { async fetch(request, env) { return env.ASSETS.fetch(request); } };\n",
+          source: `export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    let response = await env.ASSETS.fetch(request);
+    if (response.status === 404 && request.method === "GET" && !url.pathname.split("/").at(-1)?.includes(".")) {
+      url.pathname = "/index.html";
+      response = await env.ASSETS.fetch(new Request(url, request));
+    }
+    return response;
+  },
+};
+`,
         });
       },
     },
