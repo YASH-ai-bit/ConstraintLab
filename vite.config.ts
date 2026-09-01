@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { sites } from "@openai/sites-vite-plugin";
+import { copyFile, cp, mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 
 export default defineConfig({
   plugins: [
@@ -28,6 +30,16 @@ export default defineConfig({
 };
 `,
         });
+      },
+      async closeBundle() {
+        const output = resolve("dist");
+        const client = resolve(output, "client");
+        await mkdir(client, { recursive: true });
+        await Promise.all([
+          copyFile(resolve(output, "index.html"), resolve(client, "index.html")),
+          copyFile(resolve(output, "highs.wasm"), resolve(client, "highs.wasm")),
+          cp(resolve(output, "assets"), resolve(client, "assets"), { recursive: true }),
+        ]);
       },
     },
   ],
