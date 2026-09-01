@@ -130,6 +130,43 @@ function WorkspaceTabs({ activeView, onChange }: { activeView: WorkspaceView; on
   );
 }
 
+function StandaloneViewFrame({
+  view,
+  eyebrow,
+  title,
+  description,
+  metrics,
+  children,
+}: {
+  view: Exclude<WorkspaceView, "overview" | "walkthrough">;
+  eyebrow: string;
+  title: string;
+  description: string;
+  metrics: { label: string; value: string; tone?: "accent" | "danger" }[];
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`standalone-shell standalone-${view}`}>
+      <header className="standalone-header">
+        <div className="standalone-heading">
+          <span className="eyebrow">{eyebrow}</span>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        <dl className="standalone-metrics">
+          {metrics.map((metric) => (
+            <div key={metric.label} className={metric.tone ? `metric-${metric.tone}` : undefined}>
+              <dt>{metric.label}</dt>
+              <dd>{metric.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </header>
+      <div className="standalone-content">{children}</div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: SolveStatus }) {
   return (
     <span className={`status-badge status-${status.toLowerCase()}`}>
@@ -598,6 +635,80 @@ export function App() {
     "--right-panel-width": `${layout.right}px`,
     "--audit-panel-height": `${layout.audit}px`,
   } as CSSProperties;
+  const selectedJob = state.jobs.find((job) => job.id === state.selectedJobId);
+  const activeConstraints = state.constraints.filter((constraint) => constraint.enabled).length;
+  const makespan = state.objectiveValue === undefined ? "—" : formatTime(Math.round(state.objectiveValue));
+  const renderStandaloneView = () => {
+    if (activeView === "jobs") {
+      return (
+        <StandaloneViewFrame
+          view="jobs"
+          eyebrow="MODEL INPUTS"
+          title="Jobs & resources"
+          description="Review the work queue, machine requirements, priority, duration, and current scheduled start for every operation."
+          metrics={[
+            { label: "JOBS", value: String(state.jobs.length), tone: "accent" },
+            { label: "MACHINES", value: String(state.resources.length) },
+            { label: "CONSTRAINTS", value: String(activeConstraints) },
+          ]}
+        >
+          <JobsPanel />
+        </StandaloneViewFrame>
+      );
+    }
+    if (activeView === "schedule") {
+      return (
+        <StandaloneViewFrame
+          view="schedule"
+          eyebrow="DETERMINISTIC OUTPUT"
+          title="Production schedule"
+          description="Inspect machine utilization, downtime windows, job deadlines, and the current solver result at full working scale."
+          metrics={[
+            { label: "STATUS", value: state.solveStatus, tone: state.solveStatus === "INFEASIBLE" || state.solveStatus === "ERROR" ? "danger" : "accent" },
+            { label: "MAKESPAN", value: makespan },
+            { label: "MODEL", value: `v${state.modelVersion}` },
+          ]}
+        >
+          <GanttChart />
+        </StandaloneViewFrame>
+      );
+    }
+    if (activeView === "inspector") {
+      return (
+        <StandaloneViewFrame
+          view="inspector"
+          eyebrow="MODEL DETAIL"
+          title="Inspector & constraints"
+          description="Examine a selected job or typed constraint, edit its deadline, and trace exactly what affects the schedule."
+          metrics={[
+            { label: "SELECTION", value: selectedJob ? selectedJob.id.replace("job-", "J") : "NONE", tone: selectedJob ? "accent" : undefined },
+            { label: "ENABLED", value: String(activeConstraints) },
+            { label: "MODEL", value: `v${state.modelVersion}` },
+          ]}
+        >
+          <InspectorPanel />
+        </StandaloneViewFrame>
+      );
+    }
+    if (activeView === "activity") {
+      return (
+        <StandaloneViewFrame
+          view="activity"
+          eyebrow="TRACEABLE HISTORY"
+          title="Audit timeline"
+          description="Follow every human, agent, solver, and system action with immutable version changes and inspectable payloads."
+          metrics={[
+            { label: "EVENTS", value: String(state.auditEvents.length), tone: "accent" },
+            { label: "WEBMCP", value: state.webMcpStatus.toUpperCase() },
+            { label: "TOOL CALLS", value: String(state.toolTimings.length) },
+          ]}
+        >
+          <AuditTimeline />
+        </StandaloneViewFrame>
+      );
+    }
+    return <WalkthroughPanel onOpenWorkspace={() => setActiveView("overview")} />;
+  };
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -623,11 +734,7 @@ export function App() {
         </main>
       ) : (
         <main id={`workspace-view-${activeView}`} role="tabpanel" aria-labelledby={`view-tab-${activeView}`} className={`workspace single-view view-${activeView}`}>
-          {activeView === "jobs" && <JobsPanel />}
-          {activeView === "schedule" && <GanttChart />}
-          {activeView === "inspector" && <InspectorPanel />}
-          {activeView === "activity" && <AuditTimeline />}
-          {activeView === "walkthrough" && <WalkthroughPanel onOpenWorkspace={() => setActiveView("overview")} />}
+          {renderStandaloneView()}
         </main>
       )}
     </div>

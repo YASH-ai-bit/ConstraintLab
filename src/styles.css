@@ -99,19 +99,90 @@ button:focus-visible, input:focus-visible, [role="separator"]:focus-visible { ou
   gap: 0;
   overflow: hidden;
 }
-.workspace.single-view { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-.single-view > .panel { grid-column: 1; grid-row: 1; }
-.view-jobs .left-panel, .view-inspector .right-panel { width: min(100%, 920px); justify-self: center; }
-.view-jobs .job-row { padding: 10px 14px; }
+.workspace.single-view { display: block; padding: 16px 18px 18px; overflow: auto; }
+.standalone-shell { width: 100%; max-width: 1540px; min-height: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.standalone-header { min-height: 82px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 14px 18px; border: 1px solid var(--line-strong); border-radius: 6px; background: #f9faf8; box-shadow: var(--shadow); }
+.standalone-heading { min-width: 0; }
+.standalone-heading h1 { margin: 3px 0 0; color: var(--ink); font-size: 20px; line-height: 1.08; letter-spacing: -.035em; }
+.standalone-heading p { max-width: 720px; margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.standalone-metrics { flex: 0 0 auto; display: flex; gap: 6px; margin: 0; }
+.standalone-metrics > div { min-width: 94px; min-height: 50px; display: flex; flex-direction: column; justify-content: center; padding: 8px 11px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.standalone-metrics dt { color: var(--faint); font: 760 7px ui-monospace, monospace; letter-spacing: .1em; }
+.standalone-metrics dd { margin: 4px 0 0; color: var(--ink); font: 780 11px ui-monospace, monospace; white-space: nowrap; }
+.standalone-metrics .metric-accent { border-color: #b6d0c7; background: var(--accent-faint); }
+.standalone-metrics .metric-accent dd { color: var(--accent); }
+.standalone-metrics .metric-danger { border-color: #dcb3ae; background: var(--danger-soft); }
+.standalone-metrics .metric-danger dd { color: var(--danger); }
+.standalone-content { flex: 1 1 560px; min-height: 520px; display: flex; }
+.standalone-content > .panel { width: 100%; flex: 1; }
+
+.standalone-jobs { max-width: 1180px; }
+.view-jobs .segmented { flex: 0 0 50px; grid-template-columns: 150px 150px 1fr; align-items: center; gap: 5px; padding: 8px 10px; }
+.view-jobs .job-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(54px, auto); align-content: start; padding: 8px; gap: 6px; background: #f6f8f5; }
+.view-jobs .job-row { min-height: 54px; grid-template-columns: 42px minmax(0, 1fr) 72px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff; box-shadow: 0 1px 1px #18251d08; }
+.view-jobs .job-row:hover { border-color: #b8cbc3; box-shadow: 0 2px 6px #18312612; }
+.view-jobs .job-row.selected { border-color: #9abdb1; }
+.view-jobs .job-code { width: 34px; height: 30px; font-size: 10px; }
 .view-jobs .job-main strong { font-size: 11px; }
 .view-jobs .job-main small, .view-jobs .job-time { font-size: 9px; }
-.view-jobs .resource-list { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 8px; }
-.view-jobs .resource-card { padding: 14px 12px; }
-.view-inspector .inspector-body { padding: 20px; }
-.view-activity .audit-heading { height: 52px; flex-basis: 52px; }
-.view-activity .audit-event { min-width: 260px; max-width: 320px; }
-.view-activity .audit-event summary { height: 68px; }
-.view-walkthrough { padding: 9px; }
+.view-jobs .job-time { justify-self: end; padding: 5px 7px; border-radius: 3px; background: #f0f3f0; }
+.view-jobs .resource-list { flex: 1; align-content: start; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; gap: 10px; background: #f6f8f5; overflow: auto; }
+.view-jobs .resource-card { min-height: 78px; padding: 14px 16px; }
+.view-jobs .resource-dot { height: 46px; }
+.view-jobs .resource-meta strong { font-size: 12px; }
+.view-jobs .resource-meta span { font-size: 9px; }
+.view-jobs .panel-foot { flex-basis: 40px; font-size: 9px; }
+
+.view-schedule .standalone-content { min-height: 570px; }
+.view-schedule .panel-title { min-height: 70px; flex-basis: 70px; padding: 0 18px; }
+.view-schedule .panel-title h2 { font-size: 16px; }
+.view-schedule .gantt-wrap { grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: 42px repeat(4, minmax(82px, 1fr)); padding: 10px 18px 0; }
+.view-schedule .gantt-axis span { bottom: 10px; font-size: 8px; }
+.view-schedule .gantt-resource { padding-top: 18px; }
+.view-schedule .gantt-resource > span { height: 36px; }
+.view-schedule .gantt-resource strong { font-size: 10px; }
+.view-schedule .gantt-resource small { font-size: 8px; }
+.view-schedule .gantt-block { top: 19px; height: 50px; padding: 7px 8px; }
+.view-schedule .gantt-block strong { font-size: 10px; }
+.view-schedule .gantt-block span { font-size: 8px; }
+.view-schedule .downtime { top: 10px; bottom: 10px; }
+.view-schedule .gantt-summary { min-height: 46px; flex-basis: 46px; padding: 0 18px; font-size: 9px; }
+
+.standalone-inspector { max-width: 1080px; }
+.view-inspector .segmented { flex: 0 0 52px; align-items: center; padding: 8px; }
+.view-inspector .segmented button { min-height: 34px; }
+.view-inspector .inspector-body { width: min(100%, 920px); align-self: center; padding: 26px 32px; }
+.view-inspector .selection-heading { padding-bottom: 18px; }
+.view-inspector .selection-heading h3, .view-inspector .constraint-title, .view-inspector .overview h3 { font-size: 18px; }
+.view-inspector .selection-heading p, .view-inspector .overview > p { font-size: 10px; }
+.view-inspector .metric-grid { grid-template-columns: repeat(4, 1fr); margin: 18px 0; }
+.view-inspector .metric-grid label { min-height: 68px; padding: 12px; font-size: 8px; }
+.view-inspector .metric-grid strong { margin-top: 7px; font-size: 11px; }
+.view-inspector .field-block { max-width: 440px; }
+.view-inspector .field-block > label, .view-inspector .subhead { font-size: 8px; }
+.view-inspector .inline-field input { min-height: 38px; font-size: 10px; }
+.view-inspector .mini-constraint-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.view-inspector .mini-constraint-list button { min-height: 42px; padding: 9px 8px; border: 1px solid var(--line); border-radius: 3px; background: #fafbf9; font-size: 9px; }
+.view-inspector .constraint-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(54px, auto); align-content: start; gap: 6px; padding: 12px; background: #f6f8f5; }
+.view-inspector .constraint-row { min-height: 54px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; background: white; }
+.view-inspector .constraint-copy strong { font-size: 8px; }
+.view-inspector .constraint-copy small { margin-top: 4px; font-size: 9px; }
+.view-inspector .source-legend { flex-basis: 40px; height: 40px; padding: 0 14px; font-size: 8px; }
+
+.view-activity .standalone-content { min-height: 560px; }
+.view-activity .audit-heading { height: 58px; flex-basis: 58px; padding: 0 16px; }
+.view-activity .audit-heading h2 { font-size: 14px; }
+.view-activity .audit-content { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.view-activity .audit-events { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); grid-auto-rows: min-content; align-content: start; overflow: auto; padding: 12px; gap: 8px; background: #f6f8f5; }
+.view-activity .audit-event { min-width: 0; max-width: none; background: white; }
+.view-activity .audit-event summary { min-height: 68px; height: auto; padding: 10px 12px; }
+.view-activity .event-copy strong { font-size: 9px; }
+.view-activity .event-copy small, .view-activity .audit-event time { font-size: 8px; }
+.view-activity .audit-event pre { max-height: 220px; font-size: 8px; }
+.view-activity .dev-panel { width: 360px; flex-basis: 360px; padding: 14px 16px; background: #f1f4f1; }
+.view-activity .dev-panel p, .view-activity .dev-status, .view-activity .tool-pills span, .view-activity .tool-pills em, .view-activity .timing-list em, .view-activity .timing-list > div, .view-activity .timing-list > div > span { font-size: 8px; }
+.view-walkthrough { padding: 9px; display: flex; overflow: hidden; }
+.view-walkthrough > .walkthrough-panel { width: 100%; flex: 1; }
 .walkthrough-panel { display: flex; flex-direction: column; background: #f9fbf8; }
 .tour-header { min-height: 76px; flex: 0 0 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 18px; border-bottom: 1px solid var(--line); background: #fdfefc; }
 .tour-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
