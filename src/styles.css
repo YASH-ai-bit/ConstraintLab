@@ -76,6 +76,19 @@ button:focus-visible, input:focus-visible, [role="separator"]:focus-visible { ou
 .reset-button { height: 32px; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 4px; display: grid; place-items: center; }
 .reset-button:hover { background: #e9ece8; color: var(--ink); }
 
+.viewbar { height: 44px; flex: 0 0 44px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 12px; background: #f3f5f2; border-bottom: 1px solid var(--line-strong); }
+.view-tabs { height: 100%; display: flex; align-items: center; gap: 3px; }
+.view-tabs button { height: 32px; display: flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 4px; padding: 0 9px; background: transparent; color: var(--muted); cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.view-tabs button:hover { color: var(--ink); background: #e8ece8; }
+.view-tabs button.active { color: var(--accent-strong); background: white; border-color: var(--line-strong); box-shadow: 0 1px 2px #17231d12; }
+.view-tabs button > span { font-size: 9px; font-weight: 700; }
+.view-meta { min-width: 20px; padding: 2px 4px; border-radius: 2px; background: #e3e7e3; color: var(--faint); font: 750 7px ui-monospace, monospace; text-align: center; }
+.view-tabs button.active .view-meta { background: var(--accent-soft); color: var(--accent); }
+.view-meta.status-text-optimal, .view-meta.status-text-feasible { color: #226451; background: #e1eee8; }
+.view-meta.status-text-infeasible, .view-meta.status-text-error { color: #943d37; background: #f5e3e1; }
+.view-meta.status-text-solving { color: #625285; background: #ebe6f4; }
+.view-description { color: var(--faint); font: 8px ui-monospace, monospace; white-space: nowrap; }
+
 .workspace {
   flex: 1;
   min-height: 0;
@@ -86,6 +99,18 @@ button:focus-visible, input:focus-visible, [role="separator"]:focus-visible { ou
   gap: 0;
   overflow: hidden;
 }
+.workspace.single-view { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.single-view > .panel { grid-column: 1; grid-row: 1; }
+.view-jobs .left-panel, .view-inspector .right-panel { width: min(100%, 920px); justify-self: center; }
+.view-jobs .job-row { padding: 10px 14px; }
+.view-jobs .job-main strong { font-size: 11px; }
+.view-jobs .job-main small, .view-jobs .job-time { font-size: 9px; }
+.view-jobs .resource-list { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; gap: 8px; }
+.view-jobs .resource-card { padding: 14px 12px; }
+.view-inspector .inspector-body { padding: 20px; }
+.view-activity .audit-heading { height: 52px; flex-basis: 52px; }
+.view-activity .audit-event { min-width: 260px; max-width: 320px; }
+.view-activity .audit-event summary { height: 68px; }
 .panel { background: var(--paper); border: 1px solid var(--line-strong); border-radius: 6px; min-width: 0; min-height: 0; overflow: hidden; box-shadow: var(--shadow); }
 .left-panel { grid-column: 1; grid-row: 1; }
 .gantt-panel { grid-column: 3; grid-row: 1; }
@@ -288,6 +313,7 @@ body.resizing-audit { cursor: row-resize; }
   .topbar { grid-template-columns: 218px 230px minmax(330px, 1fr) 32px 116px; gap: 10px; }
   .legend { display: none; }
   .gantt-summary { gap: 13px; }
+  .view-description { display: none; }
 }
 
 @media (max-height: 760px) {

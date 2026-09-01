@@ -46,6 +46,7 @@ const LAYOUT_LIMITS = {
 };
 
 type ResizeTarget = keyof typeof DEFAULT_LAYOUT;
+type WorkspaceView = "overview" | "jobs" | "schedule" | "inspector" | "activity";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -81,6 +82,46 @@ function ResizeHandle({
     >
       <span>{horizontal ? <GripHorizontal size={14} /> : <GripVertical size={14} />}</span>
     </div>
+  );
+}
+
+function WorkspaceTabs({ activeView, onChange }: { activeView: WorkspaceView; onChange: (view: WorkspaceView) => void }) {
+  const state = useConstraintLab((value) => value);
+  const views: { id: WorkspaceView; label: string; meta: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", meta: "ALL", icon: <Zap size={14} /> },
+    { id: "jobs", label: "Jobs", meta: String(state.jobs.length), icon: <Box size={14} /> },
+    { id: "schedule", label: "Schedule", meta: state.solveStatus, icon: <Gauge size={14} /> },
+    { id: "inspector", label: "Inspector", meta: state.selectedJobId ? state.selectedJobId.replace("job-", "J") : "DETAIL", icon: <SlidersHorizontal size={14} /> },
+    { id: "activity", label: "Activity", meta: String(state.auditEvents.length), icon: <Clock3 size={14} /> },
+  ];
+  const descriptions: Record<WorkspaceView, string> = {
+    overview: "All panels · draggable layout",
+    jobs: "Jobs and machine resources",
+    schedule: "Full-width resource schedule",
+    inspector: "Selected model details",
+    activity: "Human, agent, and solver history",
+  };
+  return (
+    <nav className="viewbar" aria-label="Workspace sections">
+      <div className="view-tabs" role="tablist" aria-label="Workspace view">
+        {views.map((view) => (
+          <button
+            key={view.id}
+            id={`view-tab-${view.id}`}
+            role="tab"
+            aria-selected={activeView === view.id}
+            aria-controls={`workspace-view-${view.id}`}
+            className={activeView === view.id ? "active" : ""}
+            onClick={() => onChange(view.id)}
+          >
+            {view.icon}
+            <span>{view.label}</span>
+            <small className={view.id === "schedule" ? `view-meta status-text-${state.solveStatus.toLowerCase()}` : "view-meta"}>{view.meta}</small>
+          </button>
+        ))}
+      </div>
+      <span className="view-description">{descriptions[activeView]}</span>
+    </nav>
   );
 }
 
@@ -357,6 +398,7 @@ export function App() {
   const state = useConstraintLab((value) => value);
   const workspaceRef = useRef<HTMLElement>(null);
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
+  const [activeView, setActiveView] = useState<WorkspaceView>("overview");
   const stale = state.solvedModelVersion !== undefined && state.modelVersion !== state.solvedModelVersion;
   const headerMessage = useMemo(() => stale ? "Model changed — re-solve required." : state.solveStatus === "INFEASIBLE" ? "Conflict detected — inspect constraints." : state.solveStatus === "UNSOLVED" ? "Ready for a deterministic solve." : `Solved model v${state.solvedModelVersion}.`, [stale, state.solveStatus, state.solvedModelVersion]);
   const resetPanelSize = (target: ResizeTarget) => setLayout((current) => ({ ...current, [target]: DEFAULT_LAYOUT[target] }));
@@ -421,15 +463,25 @@ export function App() {
           <kbd>⌘↵</kbd>
         </button>
       </header>
-      <main className="workspace" ref={workspaceRef} style={workspaceStyle}>
-        <JobsPanel />
-        <ResizeHandle target="left" value={layout.left} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
-        <GanttChart />
-        <ResizeHandle target="right" value={layout.right} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
-        <InspectorPanel />
-        <ResizeHandle target="audit" value={layout.audit} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
-        <AuditTimeline />
-      </main>
+      <WorkspaceTabs activeView={activeView} onChange={setActiveView} />
+      {activeView === "overview" ? (
+        <main id="workspace-view-overview" role="tabpanel" aria-labelledby="view-tab-overview" className="workspace" ref={workspaceRef} style={workspaceStyle}>
+          <JobsPanel />
+          <ResizeHandle target="left" value={layout.left} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+          <GanttChart />
+          <ResizeHandle target="right" value={layout.right} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+          <InspectorPanel />
+          <ResizeHandle target="audit" value={layout.audit} onPointerDown={startResize} onKeyDown={handleResizeKey} onReset={resetPanelSize} />
+          <AuditTimeline />
+        </main>
+      ) : (
+        <main id={`workspace-view-${activeView}`} role="tabpanel" aria-labelledby={`view-tab-${activeView}`} className={`workspace single-view view-${activeView}`}>
+          {activeView === "jobs" && <JobsPanel />}
+          {activeView === "schedule" && <GanttChart />}
+          {activeView === "inspector" && <InspectorPanel />}
+          {activeView === "activity" && <AuditTimeline />}
+        </main>
+      )}
     </div>
   );
 }
