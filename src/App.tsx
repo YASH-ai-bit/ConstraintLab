@@ -1,11 +1,13 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
   AlertTriangle,
   Bot,
+  BookOpen,
   Box,
   Braces,
   Check,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
   CircleDot,
@@ -15,6 +17,7 @@ import {
   GripHorizontal,
   GripVertical,
   LoaderCircle,
+  Pause,
   Play,
   RotateCcw,
   Settings2,
@@ -46,7 +49,7 @@ const LAYOUT_LIMITS = {
 };
 
 type ResizeTarget = keyof typeof DEFAULT_LAYOUT;
-type WorkspaceView = "overview" | "jobs" | "schedule" | "inspector" | "activity";
+type WorkspaceView = "overview" | "jobs" | "schedule" | "inspector" | "activity" | "walkthrough";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -93,6 +96,7 @@ function WorkspaceTabs({ activeView, onChange }: { activeView: WorkspaceView; on
     { id: "schedule", label: "Schedule", meta: state.solveStatus, icon: <Gauge size={14} /> },
     { id: "inspector", label: "Inspector", meta: state.selectedJobId ? state.selectedJobId.replace("job-", "J") : "DETAIL", icon: <SlidersHorizontal size={14} /> },
     { id: "activity", label: "Activity", meta: String(state.auditEvents.length), icon: <Clock3 size={14} /> },
+    { id: "walkthrough", label: "Walkthrough", meta: "GUIDE", icon: <BookOpen size={14} /> },
   ];
   const descriptions: Record<WorkspaceView, string> = {
     overview: "All panels · draggable layout",
@@ -100,6 +104,7 @@ function WorkspaceTabs({ activeView, onChange }: { activeView: WorkspaceView; on
     schedule: "Full-width resource schedule",
     inspector: "Selected model details",
     activity: "Human, agent, and solver history",
+    walkthrough: "Animated guide to the complete workflow",
   };
   return (
     <nav className="viewbar" aria-label="Workspace sections">
@@ -394,6 +399,148 @@ function AuditTimeline() {
   );
 }
 
+const WALKTHROUGH_STEPS = [
+  {
+    kicker: "01 · SHARED MODEL",
+    title: "Start from one source of truth",
+    description: "Open Overview to see the jobs, resources, typed constraints, Gantt chart, inspector, and audit history together. Human edits and agent actions always update this same canonical model.",
+    detail: "Check the model version before making changes.",
+  },
+  {
+    kicker: "02 · HUMAN INTENT",
+    title: "Describe the outcome in plain language",
+    description: "Tell the agent what matters operationally. You express the goal and trade-offs; the agent translates that intent into narrow, validated site-tool calls.",
+    detail: "“Machine 2 is down from 1–3 PM. Job 7 must finish before noon.”",
+  },
+  {
+    kicker: "03 · WEBMCP ACTIONS",
+    title: "Watch structured changes appear",
+    description: "The agent reads the current state, adds typed constraints, and records each mutation. New constraints appear immediately in the UI and audit timeline.",
+    detail: "get_problem_state → add_constraint ×2",
+  },
+  {
+    kicker: "04 · REAL OPTIMIZATION",
+    title: "Let HiGHS compute the answer",
+    description: "The solve action compiles the model into a job-shop MILP and runs HiGHS in a Web Worker. The language model never invents the schedule.",
+    detail: "SOLVING is indeterminate—there is no fake percentage.",
+  },
+  {
+    kicker: "05 · HUMAN REVIEW",
+    title: "Inspect the optimal schedule",
+    description: "Review the Gantt blocks, machine downtime, deadlines, makespan, and affected constraints. Click any job to inspect its exact timing and dependencies.",
+    detail: "Accept the result, edit a constraint, or ask the agent to iterate.",
+  },
+  {
+    kicker: "06 · EXPLAIN CONFLICTS",
+    title: "Turn infeasibility into useful facts",
+    description: "When requirements conflict, the deterministic analyzer identifies the exact typed constraints, jobs, resources, and missing time—without asking an LLM to guess.",
+    detail: "Job 4 needs 240 min; only 210 min are available before 12:30 PM.",
+  },
+] as const;
+
+function WalkthroughPanel({ onOpenWorkspace }: { onOpenWorkspace: () => void }) {
+  const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(true);
+  const current = WALKTHROUGH_STEPS[step];
+  const lastStep = WALKTHROUGH_STEPS.length - 1;
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(false);
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setTimeout(() => {
+      setStep((value) => {
+        if (value >= lastStep) {
+          setPlaying(false);
+          return value;
+        }
+        return value + 1;
+      });
+    }, 4300);
+    return () => window.clearTimeout(timer);
+  }, [playing, step, lastStep]);
+
+  const chooseStep = (nextStep: number) => {
+    setStep(clamp(nextStep, 0, lastStep));
+    setPlaying(false);
+  };
+  const restart = () => {
+    setStep(0);
+    setPlaying(true);
+  };
+
+  return (
+    <section className={`panel walkthrough-panel ${playing ? "is-playing" : ""}`}>
+      <header className="tour-header">
+        <div className="tour-heading">
+          <span className="tour-mark"><BookOpen size={18} /></span>
+          <div><span className="eyebrow">GUIDED PRODUCT TOUR</span><h2>How ConstraintLab works</h2><p>A concise walkthrough of the complete human + agent + deterministic solver loop.</p></div>
+        </div>
+        <div className="tour-controls" aria-label="Walkthrough playback controls">
+          <button aria-label="Previous step" disabled={step === 0} onClick={() => chooseStep(step - 1)}><ChevronLeft size={14} /></button>
+          <button className="tour-play" onClick={() => setPlaying((value) => !value)}>{playing ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />} {playing ? "Pause" : "Play"}</button>
+          <button aria-label="Next step" disabled={step === lastStep} onClick={() => chooseStep(step + 1)}><ChevronRight size={14} /></button>
+          <button aria-label="Restart walkthrough" onClick={restart}><RotateCcw size={13} /></button>
+        </div>
+      </header>
+
+      <div className="tour-progress" aria-label={`Walkthrough step ${step + 1} of ${WALKTHROUGH_STEPS.length}`}>
+        {WALKTHROUGH_STEPS.map((item, index) => (
+          <button key={item.kicker} className={`${index < step ? "complete" : ""} ${index === step ? "active" : ""}`} onClick={() => chooseStep(index)} aria-label={`Go to step ${index + 1}: ${item.title}`}><i /></button>
+        ))}
+      </div>
+
+      <div className="tour-body">
+        <aside className="tour-steps" aria-label="Walkthrough steps">
+          {WALKTHROUGH_STEPS.map((item, index) => (
+            <button key={item.kicker} className={index === step ? "active" : ""} onClick={() => chooseStep(index)}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <div><strong>{item.title}</strong><small>{item.kicker.split(" · ")[1]}</small></div>
+              {index < step ? <Check size={13} /> : <i />}
+            </button>
+          ))}
+        </aside>
+
+        <div className="tour-main">
+          <div className={`tour-stage tour-step-${step}`} aria-hidden="true">
+            <div className="tour-flow">
+              <span className="flow-human"><UserRound size={12} /> Human intent</span><i />
+              <span className="flow-agent"><Bot size={12} /> WebMCP actions</span><i />
+              <span className="flow-solver"><Cpu size={12} /> HiGHS solver</span><i />
+              <span className="flow-review"><Check size={12} /> Human review</span>
+            </div>
+            <div className="tour-demo">
+              <div className="tour-demo-top"><span><Wrench size={11} /> ConstraintLab</span><span className="tour-demo-status"><CircleDot size={9} /> {step === 3 ? "SOLVING" : step === 5 ? "INFEASIBLE" : step >= 4 ? "OPTIMAL" : "MODEL v3"}</span><b>{step === 3 ? <LoaderCircle size={10} className="spin" /> : <Play size={9} fill="currentColor" />} SOLVE</b></div>
+              <div className="tour-demo-main">
+                <div className="tour-mini-jobs"><small>JOBS · 15</small>{["J1  Steel blanks", "J4  Emergency rework", "J7  Final calibration", "J15 Final pack"].map((job, index) => <span key={job} className={step === 0 && index === 2 ? "selected" : ""}>{job}<i /></span>)}</div>
+                <div className="tour-mini-gantt"><small>RESOURCE SCHEDULE</small><div className="tour-axis"><i /><i /><i /><i /><i /></div>{[0, 1, 2, 3].map((lane) => <div className="tour-lane" key={lane}><span>M{lane + 1}</span><i className={`tour-job-block block-${lane}`} /><i className="tour-job-block secondary" />{lane === 1 && <em>DOWN</em>}</div>)}</div>
+                <div className="tour-mini-inspector"><small>CONSTRAINTS</small><span className={step === 2 ? "selected" : ""}><i className="source-dot agent" />Machine 2 downtime</span><span className={step === 2 ? "selected" : ""}><i className="source-dot agent" />Job 7 deadline</span><span><i className="source-dot system" />Job precedence</span></div>
+              </div>
+              <div className="tour-mini-audit"><small>SHARED HISTORY</small><span><Bot size={10} /> Added constraint</span><span><Cpu size={10} /> {step === 5 ? "Model infeasible" : "Optimal schedule"}</span></div>
+            </div>
+
+            {step === 1 && <div className="tour-overlay tour-prompt"><span><UserRound size={13} /> YOUR PROMPT</span><p>“Machine 2 will be unavailable from 1–3 PM, and Job 7 must finish before noon.”</p></div>}
+            {step === 2 && <div className="tour-overlay tour-tools"><span><Bot size={13} /> STRUCTURED ACTIONS</span><code>get_problem_state</code><code>add_constraint · resource_availability</code><code>add_constraint · deadline</code></div>}
+            {step === 3 && <div className="tour-overlay tour-solver"><LoaderCircle size={22} className="spin" /><div><span>HiGHS MILP</span><strong>Computing a valid schedule</strong><small>Running off the main thread</small></div></div>}
+            {step === 4 && <div className="tour-overlay tour-result"><Check size={17} /><div><span>PROVABLY VALID RESULT</span><strong>Optimal · makespan 3:45 PM</strong></div></div>}
+            {step === 5 && <div className="tour-overlay tour-conflict"><AlertTriangle size={17} /><div><span>DETERMINISTIC CONFLICT</span><strong>Job 4 is short by 30 minutes</strong><small>Assignment + deadline constraints highlighted</small></div></div>}
+          </div>
+
+          <article className="tour-copy" key={step}>
+            <span>{current.kicker}</span>
+            <h3>{current.title}</h3>
+            <p>{current.description}</p>
+            <div><CircleDot size={11} /><strong>{current.detail}</strong></div>
+            <footer><span>Step {step + 1} of {WALKTHROUGH_STEPS.length}</span>{step === lastStep && <button onClick={onOpenWorkspace}>Open the workspace <ChevronRight size={13} /></button>}</footer>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const state = useConstraintLab((value) => value);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -480,6 +627,7 @@ export function App() {
           {activeView === "schedule" && <GanttChart />}
           {activeView === "inspector" && <InspectorPanel />}
           {activeView === "activity" && <AuditTimeline />}
+          {activeView === "walkthrough" && <WalkthroughPanel onOpenWorkspace={() => setActiveView("overview")} />}
         </main>
       )}
     </div>
