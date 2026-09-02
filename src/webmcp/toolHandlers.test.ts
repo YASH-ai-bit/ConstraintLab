@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { appStore } from "../state/store";
+import { createToolDefinitions } from "./toolDefinitions";
 import { toolHandlers } from "./toolHandlers";
 
 describe("WebMCP handlers share canonical actions", () => {
@@ -24,5 +25,28 @@ describe("WebMCP handlers share canonical actions", () => {
     expect(toolHandlers.get_problem_state({}).ok).toBe(true);
     const after = appStore.getState();
     expect({ modelVersion: after.modelVersion, jobs: after.jobs, constraints: after.constraints, auditCount: after.auditEvents.length }).toEqual(snapshot);
+  });
+
+  it("returns isolated state snapshots that cannot mutate the canonical model", () => {
+    const result = toolHandlers.get_problem_state({});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    result.data.jobs[0].name = "Tampered outside the store";
+    result.data.constraints[0].description = "Tampered outside the store";
+    expect(appStore.getState().jobs[0].name).toBe("Steel blanks");
+    expect(appStore.getState().constraints[0].description).not.toBe("Tampered outside the store");
+  });
+
+  it("rejects infeasibility analysis after the proven model has changed", () => {
+    const state = appStore.getState();
+    state.onSolverResult({ status: "infeasible", conflicts: [], solveTimeMs: 1 }, state.modelVersion);
+    appStore.getState().updateJob("job-1", { priority: 4 }, "human");
+    expect(toolHandlers.analyze_infeasibility({})).toMatchObject({ ok: false, code: "STALE_INFEASIBILITY" });
+  });
+
+  it("annotates read-only and mutating tools for WebMCP clients", () => {
+    const definitions = createToolDefinitions();
+    expect(definitions.find((tool) => tool.name === "get_problem_state")?.annotations).toMatchObject({ readOnlyHint: true, untrustedContentHint: false });
+    expect(definitions.find((tool) => tool.name === "solve_problem")?.annotations).toMatchObject({ readOnlyHint: false, untrustedContentHint: false });
   });
 });

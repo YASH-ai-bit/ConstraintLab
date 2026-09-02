@@ -88,6 +88,7 @@ Registration is feature-detected at startup. When a native `document.modelContex
 Each registration has:
 
 - a stable tool name;
+- a human-readable title and explicit `readOnlyHint` / `untrustedContentHint` annotations;
 - a task-oriented description written for agent discovery;
 - JSON Schema generated from the same Zod schema used at execution time;
 - an `execute` handler returning one MCP text content block;
@@ -95,6 +96,8 @@ Each registration has:
 - timing and success metadata recorded in the developer panel.
 
 Registrations are attached to an `AbortController`, allowing a subsequent registration pass to retire the previous set cleanly without maintaining a second tool registry.
+
+Long-running `solve_problem` calls also honor the WebMCP execution `AbortSignal`. Cancellation terminates the dedicated worker, restores the prior solve state when the model has not changed, writes a structured audit event, and returns `SOLVE_CANCELLED` rather than leaving the workspace in `SOLVING`.
 
 ### Tool surface
 
@@ -516,7 +519,7 @@ npm run test
 npm run build
 ```
 
-Current suite: **5 test files, 11 tests**.
+Current suite: **5 test files, 17 tests**.
 
 ---
 

@@ -25,14 +25,14 @@ function compactProblemState() {
   return {
     scenarioName: state.scenarioName,
     modelVersion: state.modelVersion,
-    objective: state.objective,
+    objective: structuredClone(state.objective),
     solveStatus: state.solveStatus,
     solvedModelVersion: state.solvedModelVersion,
     staleSolution: state.solvedModelVersion !== undefined && state.solvedModelVersion !== state.modelVersion,
-    jobs: state.jobs,
-    resources: state.resources,
-    constraints: state.constraints,
-    infeasibility: state.infeasibility,
+    jobs: structuredClone(state.jobs),
+    resources: structuredClone(state.resources),
+    constraints: structuredClone(state.constraints),
+    infeasibility: state.infeasibility ? structuredClone(state.infeasibility) : undefined,
   };
 }
 
@@ -72,17 +72,17 @@ export const toolHandlers = {
     return parsed.ok ? appStore.getState().setObjective(parsed.data, "agent") : parsed;
   },
 
-  async solve_problem(input: unknown): Promise<ActionResult<SolverResult>> {
+  async solve_problem(input: unknown, context?: { signal?: AbortSignal }): Promise<ActionResult<SolverResult>> {
     const parsed = parse(solveProblemSchema, input ?? {});
-    return parsed.ok ? appStore.getState().solveProblem("agent") : parsed;
+    return parsed.ok ? appStore.getState().solveProblem("agent", context?.signal) : parsed;
   },
 
   get_solution(input: unknown) {
     const parsed = parse(getSolutionSchema, input ?? {});
     if (!parsed.ok) return parsed;
     const state = appStore.getState();
+    if (state.solvedModelVersion !== undefined && state.modelVersion !== state.solvedModelVersion) return { ok: false as const, code: "STALE_SOLUTION", message: `The solution is for model v${state.solvedModelVersion}, but the current model is v${state.modelVersion}.`, recoverable: true, suggestedAction: "Call solve_problem again." };
     if (state.solvedModelVersion === undefined || !["OPTIMAL", "FEASIBLE"].includes(state.solveStatus)) return { ok: false as const, code: "NO_SOLUTION", message: "No solved schedule is available.", recoverable: true, suggestedAction: "Call solve_problem first." };
-    if (state.modelVersion !== state.solvedModelVersion) return { ok: false as const, code: "STALE_SOLUTION", message: `The solution is for model v${state.solvedModelVersion}, but the current model is v${state.modelVersion}.`, recoverable: true, suggestedAction: "Call solve_problem again." };
     return { ok: true as const, data: { modelVersion: state.solvedModelVersion, objective: state.objective, objectiveValue: state.objectiveValue, assignments: structuredClone(state.assignments), solveTimeMs: state.solveTimeMs } };
   },
 
@@ -90,6 +90,7 @@ export const toolHandlers = {
     const parsed = parse(analyzeInfeasibilitySchema, input ?? {});
     if (!parsed.ok) return parsed;
     const state = appStore.getState();
+    if (state.solvedModelVersion !== undefined && state.solvedModelVersion !== state.modelVersion) return { ok: false as const, code: "STALE_INFEASIBILITY", message: `The infeasibility result is for model v${state.solvedModelVersion}, but the current model is v${state.modelVersion}.`, recoverable: true, suggestedAction: "Call solve_problem again, then analyze only if the current model is infeasible." };
     if (state.solveStatus !== "INFEASIBLE") return { ok: false as const, code: "MODEL_NOT_INFEASIBLE", message: `Current solve status is ${state.solveStatus}.`, recoverable: true, suggestedAction: "Call solve_problem, then analyze only if the result is infeasible." };
     return { ok: true as const, data: analyzeInfeasibility(currentProblem()) };
   },

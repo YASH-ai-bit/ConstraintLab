@@ -35,4 +35,13 @@ describe("canonical domain actions", () => {
     expect(deadline).toMatchObject({ ok: true, data: { id: "due-j7", type: "deadline" } });
     expect(store.getState().constraints.find((item) => item.id === "down-m2")?.description).toContain("1:00 PM–3:00 PM");
   });
+
+  it("does not enter SOLVING when an agent call is already cancelled", async () => {
+    const store = createConstraintLabStore();
+    const controller = new AbortController();
+    controller.abort();
+    const result = await store.getState().solveProblem("agent", controller.signal);
+    expect(result).toMatchObject({ ok: false, code: "SOLVE_CANCELLED" });
+    expect(store.getState().solveStatus).toBe("UNSOLVED");
+  });
 });

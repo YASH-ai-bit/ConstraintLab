@@ -27,4 +27,23 @@ describe("HiGHS MILP integration", () => {
     expect(result.status).toBe("optimal");
     if (result.status === "optimal") expect(result.objectiveValue).toBeCloseTo(60, 4);
   });
+
+  it("keeps a job out of a resource downtime window", async () => {
+    const problem = tinyProblem([90]);
+    problem.resources[0].unavailableWindows = [{ start: 60, end: 120 }];
+    const result = await solveOptimizationProblem(problem);
+    expect(result.status).toBe("optimal");
+    if (result.status !== "optimal") return;
+    expect(result.assignments[0]).toMatchObject({ start: 120, end: 210 });
+    expect(result.objectiveValue).toBeCloseTo(210, 4);
+  });
+
+  it("enforces an agent-added resource availability constraint", async () => {
+    const problem = tinyProblem([90]);
+    problem.constraints.push({ id: "r1-down", type: "resource_availability", description: "Maintenance", enabled: true, source: "agent", parameters: { resourceId: "r1", start: 60, end: 120 } });
+    const result = await solveOptimizationProblem(problem);
+    expect(result.status).toBe("optimal");
+    if (result.status !== "optimal") return;
+    expect(result.assignments[0]).toMatchObject({ start: 120, end: 210 });
+  });
 });

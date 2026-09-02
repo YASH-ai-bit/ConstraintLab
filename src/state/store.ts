@@ -49,7 +49,7 @@ export type ConstraintLabState = {
   removeConstraint: (id: string, actor?: Actor) => ActionResult<{ id: string }>;
   setConstraintEnabled: (id: string, enabled: boolean, actor?: Actor) => ActionResult<Constraint>;
   setObjective: (objective: OptimizationObjective, actor?: Actor) => ActionResult<OptimizationObjective>;
-  solveProblem: (actor?: Actor) => Promise<ActionResult<SolverResult>>;
+  solveProblem: (actor?: Actor, signal?: AbortSignal) => Promise<ActionResult<SolverResult>>;
   onSolverResult: (result: SolverResult, solvedVersion: number, actor?: Actor) => void;
   selectJob: (id?: string) => void;
   selectConstraint: (id?: string) => void;
@@ -78,6 +78,12 @@ function initialAudit(): AuditEvent[] {
 function auditEvent(actor: Actor, summary: string, before: number, after: number, input?: unknown, output?: unknown): AuditEvent {
   return { id: uid("audit"), timestamp: Date.now(), actor, type: actor === "solver" ? "solve" : "mutation", summary, modelVersionBefore: before, modelVersionAfter: after, input: clone(input), output: clone(output) };
 }
+
+const modelChangedSolveState = {
+  solveStatus: "UNSOLVED" as const,
+  infeasibility: undefined,
+  solverMessage: undefined,
+};
 
 function fieldConstraint(job: Job, type: Constraint["type"], value: unknown, resources: Resource[]): Constraint | null {
   const base = { enabled: true, source: "user" as const };
@@ -120,7 +126,7 @@ export function createConstraintLabStore() {
       }
       for (const predecessorId of job.predecessors) generated.push({ id: `precedence-${predecessorId}-${job.id}`, type: "precedence", description: `${state.jobs.find((item) => item.id === predecessorId)?.name ?? predecessorId} precedes ${job.name}`, enabled: true, parameters: { predecessorId, successorId: job.id, fieldBacked: true }, source: actor === "agent" ? "agent" : "user" });
       const nextVersion = state.modelVersion + 1;
-      set({ jobs: [...state.jobs, job], constraints: [...state.constraints, ...generated], modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `Added ${job.name}`, state.modelVersion, nextVersion, input, job)] });
+      set({ ...modelChangedSolveState, jobs: [...state.jobs, job], constraints: [...state.constraints, ...generated], modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `Added ${job.name}`, state.modelVersion, nextVersion, input, job)] });
       return { ok: true, data: clone(job) };
     },
 
@@ -154,7 +160,7 @@ export function createConstraintLabStore() {
         for (const predecessorId of updated.predecessors) constraints.push({ id: `precedence-${predecessorId}-${id}`, type: "precedence", description: `${nextJobs.find((job) => job.id === predecessorId)?.name ?? predecessorId} precedes ${updated.name}`, enabled: true, parameters: { predecessorId, successorId: id, fieldBacked: true }, source: actor === "agent" ? "agent" : "user" });
       }
       const nextVersion = state.modelVersion + 1;
-      set({ jobs: nextJobs, constraints, modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `Updated ${updated.name}`, state.modelVersion, nextVersion, { id, updates }, updated)] });
+      set({ ...modelChangedSolveState, jobs: nextJobs, constraints, modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `Updated ${updated.name}`, state.modelVersion, nextVersion, { id, updates }, updated)] });
       return { ok: true, data: clone(updated) };
     },
 
@@ -181,7 +187,7 @@ export function createConstraintLabStore() {
         source: actor === "agent" ? "agent" : parsed.data.source ?? (actor === "system" ? "system" : "user"),
       };
       const nextVersion = state.modelVersion + 1;
-      set({ constraints: [...state.constraints, constraint], modelVersion: nextVersion, selectedConstraintId: constraint.id, auditEvents: [...state.auditEvents, auditEvent(actor, `Added ${constraint.type.replaceAll("_", " ")} constraint`, state.modelVersion, nextVersion, input, constraint)] });
+      set({ ...modelChangedSolveState, constraints: [...state.constraints, constraint], modelVersion: nextVersion, selectedConstraintId: constraint.id, auditEvents: [...state.auditEvents, auditEvent(actor, `Added ${constraint.type.replaceAll("_", " ")} constraint`, state.modelVersion, nextVersion, input, constraint)] });
       return { ok: true, data: clone(constraint) };
     },
 
@@ -206,7 +212,7 @@ export function createConstraintLabStore() {
         }
       }
       const nextVersion = state.modelVersion + 1;
-      set({ jobs, constraints: state.constraints.filter((item) => item.id !== id), modelVersion: nextVersion, selectedConstraintId: state.selectedConstraintId === id ? undefined : state.selectedConstraintId, auditEvents: [...state.auditEvents, auditEvent(actor, `Removed ${constraint.description}`, state.modelVersion, nextVersion, { id }, constraint)] });
+      set({ ...modelChangedSolveState, jobs, constraints: state.constraints.filter((item) => item.id !== id), modelVersion: nextVersion, selectedConstraintId: state.selectedConstraintId === id ? undefined : state.selectedConstraintId, auditEvents: [...state.auditEvents, auditEvent(actor, `Removed ${constraint.description}`, state.modelVersion, nextVersion, { id }, constraint)] });
       return { ok: true, data: { id } };
     },
 
@@ -216,7 +222,7 @@ export function createConstraintLabStore() {
       if (!constraint) return failure("UNKNOWN_CONSTRAINT", `Unknown constraint ID: ${id}.`);
       const updated = { ...constraint, enabled };
       const nextVersion = state.modelVersion + 1;
-      set({ constraints: state.constraints.map((item) => item.id === id ? updated : item), modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `${enabled ? "Enabled" : "Disabled"} ${constraint.description}`, state.modelVersion, nextVersion, { id, enabled }, updated)] });
+      set({ ...modelChangedSolveState, constraints: state.constraints.map((item) => item.id === id ? updated : item), modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, `${enabled ? "Enabled" : "Disabled"} ${constraint.description}`, state.modelVersion, nextVersion, { id, enabled }, updated)] });
       return { ok: true, data: clone(updated) };
     },
 
@@ -226,21 +232,30 @@ export function createConstraintLabStore() {
       const state = get();
       if (state.objective.type === parsed.data.type) return { ok: true, data: clone(state.objective) };
       const nextVersion = state.modelVersion + 1;
-      set({ objective: parsed.data, modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, "Set objective to minimize makespan", state.modelVersion, nextVersion, objective, parsed.data)] });
+      set({ ...modelChangedSolveState, objective: parsed.data, modelVersion: nextVersion, auditEvents: [...state.auditEvents, auditEvent(actor, "Set objective to minimize makespan", state.modelVersion, nextVersion, objective, parsed.data)] });
       return { ok: true, data: clone(parsed.data) };
     },
 
-    solveProblem: async (actor = "human") => {
+    solveProblem: async (actor = "human", signal) => {
       const state = get();
       if (state.solveStatus === "SOLVING") return failure("SOLVE_IN_PROGRESS", "A solve is already in progress.");
+      if (signal?.aborted) return failure("SOLVE_CANCELLED", "The solve was cancelled before it started.", true, "Retry solve_problem when ready.");
       const model: OptimizationProblem = { jobs: clone(state.jobs), resources: clone(state.resources), constraints: clone(state.constraints), objective: clone(state.objective), modelVersion: state.modelVersion };
+      const previousSolveState = { solveStatus: state.solveStatus, infeasibility: state.infeasibility, solverMessage: state.solverMessage };
       set({ solveStatus: "SOLVING", solverMessage: undefined, infeasibility: undefined, auditEvents: [...state.auditEvents, auditEvent(actor, "Started deterministic solve", state.modelVersion, state.modelVersion, { modelVersion: state.modelVersion })] });
       try {
         const { solveInWorker } = await import("../solver/solverClient");
-        const result = await solveInWorker(model);
+        const result = await solveInWorker(model, signal);
+        if (signal?.aborted) throw Object.assign(new Error("Solve cancelled."), { name: "AbortError" });
         get().onSolverResult(result, model.modelVersion, "solver");
         return { ok: true, data: result };
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          const current = get();
+          const restore = current.modelVersion === model.modelVersion ? previousSolveState : {};
+          set({ ...restore, auditEvents: [...current.auditEvents, auditEvent("solver", "Solve cancelled", current.modelVersion, current.modelVersion, { solvedVersion: model.modelVersion })] });
+          return failure("SOLVE_CANCELLED", "The solve was cancelled before completion.", true, "Retry solve_problem when ready.");
+        }
         const result: SolverResult = { status: "error", message: error instanceof Error ? error.message : "Unknown solver error.", solveTimeMs: 0 };
         get().onSolverResult(result, model.modelVersion, "solver");
         return { ok: true, data: result };
