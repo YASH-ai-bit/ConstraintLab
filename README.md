@@ -1,6 +1,9 @@
-# ConstraintLab
-
-> An agent-native job-shop scheduling workspace built around WebMCP, one canonical application state, and a deterministic HiGHS MILP solver.
+<div align="center">
+  <img src="public/constraintlab-logo.svg" alt="ConstraintLab logo" width="112" />
+  <h1>ConstraintLab</h1>
+  <p><strong>Describe the constraints. Let the solver prove the schedule.</strong></p>
+  <p>An agent-native job-shop scheduling workspace built around WebMCP, one canonical application state, and a deterministic HiGHS MILP solver.</p>
+</div>
 
 ConstraintLab is a browser-based factory scheduling environment where a human and an AI agent collaborate on the same optimization model. The human expresses operational intent and evaluates trade-offs. The agent converts that intent into typed, validated WebMCP tool calls. A real mathematical optimizer—not the language model—computes the schedule.
 
@@ -699,6 +702,12 @@ These omissions keep the shared-state, solve, inspect, and iterate loop small en
 - imperative `document.modelContext.registerTool(...)`
 - `@mcp-b/global` fallback adapter
 - Vitest
+
+---
+
+## License
+
+ConstraintLab is open-source software licensed under the [MIT License](LICENSE).
 
 ---
 

@@ -53,7 +53,8 @@ button:focus-visible, input:focus-visible, [role="separator"]:focus-visible { ou
   z-index: 20;
 }
 .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.brand-mark { width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--accent-strong); background: var(--accent); color: white; display: grid; place-items: center; border-radius: 6px; box-shadow: inset 0 1px #ffffff22; }
+.brand-mark { width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid #b7d1c7; background: var(--accent-soft); display: grid; place-items: center; border-radius: 6px; box-shadow: inset 0 1px #ffffffa8; }
+.brand-mark img { width: 27px; height: 27px; display: block; }
 .brand > div:last-child { display: flex; flex-direction: column; min-width: 0; }
 .brand strong { font-size: 16px; letter-spacing: -.025em; }
 .brand span, .scenario > span { font: 750 8px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; color: var(--faint); }
@@ -228,6 +229,7 @@ button:focus-visible, input:focus-visible, [role="separator"]:focus-visible { ou
 .tour-demo { position: absolute; z-index: 2; left: 8%; right: 8%; top: 76px; bottom: 24px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #bfc8c1; border-radius: 5px; background: white; box-shadow: 0 10px 25px #2030291f; }
 .tour-demo-top { height: 34px; flex: 0 0 34px; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 0 8px; border-bottom: 1px solid #dce2dd; background: #f8faf7; font: 750 7px ui-monospace, monospace; }
 .tour-demo-top > span:first-child, .tour-demo-status, .tour-demo-top b { display: flex; align-items: center; gap: 4px; }
+.tour-demo-logo { width: 13px; height: 13px; display: block; }
 .tour-demo-status { color: var(--accent); }
 .tour-step-5 .tour-demo-status { color: var(--danger); }
 .tour-demo-top b { height: 21px; padding: 0 6px; border-radius: 2px; color: white; background: var(--accent); font-size: 6px; }

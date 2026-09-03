@@ -23,7 +23,6 @@ import {
   Settings2,
   SlidersHorizontal,
   UserRound,
-  Wrench,
   X,
   Zap,
 } from "lucide-react";
@@ -549,7 +548,7 @@ function WalkthroughPanel({ onOpenWorkspace }: { onOpenWorkspace: () => void }) 
               <span className="flow-review"><Check size={12} /> Human review</span>
             </div>
             <div className="tour-demo">
-              <div className="tour-demo-top"><span><Wrench size={11} /> ConstraintLab</span><span className="tour-demo-status"><CircleDot size={9} /> {step === 3 ? "SOLVING" : step === 5 ? "INFEASIBLE" : step >= 4 ? "OPTIMAL" : "MODEL v3"}</span><b>{step === 3 ? <LoaderCircle size={10} className="spin" /> : <Play size={9} fill="currentColor" />} SOLVE</b></div>
+              <div className="tour-demo-top"><span><img className="tour-demo-logo" src="/constraintlab-logo.svg" alt="" /> ConstraintLab</span><span className="tour-demo-status"><CircleDot size={9} /> {step === 3 ? "SOLVING" : step === 5 ? "INFEASIBLE" : step >= 4 ? "OPTIMAL" : "MODEL v3"}</span><b>{step === 3 ? <LoaderCircle size={10} className="spin" /> : <Play size={9} fill="currentColor" />} SOLVE</b></div>
               <div className="tour-demo-main">
                 <div className="tour-mini-jobs"><small>JOBS · 15</small>{["J1  Steel blanks", "J4  Emergency rework", "J7  Final calibration", "J15 Final pack"].map((job, index) => <span key={job} className={step === 0 && index === 2 ? "selected" : ""}>{job}<i /></span>)}</div>
                 <div className="tour-mini-gantt"><small>RESOURCE SCHEDULE</small><div className="tour-axis"><i /><i /><i /><i /><i /></div>{[0, 1, 2, 3].map((lane) => <div className="tour-lane" key={lane}><span>M{lane + 1}</span><i className={`tour-job-block block-${lane}`} /><i className="tour-job-block secondary" />{lane === 1 && <em>DOWN</em>}</div>)}</div>
@@ -712,7 +711,7 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><div className="brand-mark"><Wrench size={17} /></div><div><strong>ConstraintLab</strong><span>OPTIMIZATION WORKSPACE</span></div></div>
+        <div className="brand"><div className="brand-mark"><img src="/constraintlab-logo.svg" alt="ConstraintLab" /></div><div><strong>ConstraintLab</strong><span>OPTIMIZATION WORKSPACE</span></div></div>
         <div className="scenario"><span>SCENARIO</span><strong>Factory Scheduling</strong><small>{state.jobs.length} jobs · {state.resources.length} machines · {state.constraints.filter((item) => item.enabled).length} constraints</small></div>
         <div className={`top-status ${stale ? "is-stale" : ""}`} aria-live="polite"><StatusBadge status={state.solveStatus} /><div className="top-status-copy"><strong>{headerMessage}</strong><span>{state.objective.type === "makespan" ? "Minimize makespan" : state.objective.type}</span></div><span className="version-chip">MODEL v{state.modelVersion}</span></div>
         <button className="reset-button" title="Reset demo scenario" onClick={state.resetScenario}><RotateCcw size={15} /></button>

@@ -38,6 +38,7 @@ export default defineConfig({
         await Promise.all([
           copyFile(resolve(output, "index.html"), resolve(client, "index.html")),
           copyFile(resolve(output, "highs.wasm"), resolve(client, "highs.wasm")),
+          copyFile(resolve(output, "constraintlab-logo.svg"), resolve(client, "constraintlab-logo.svg")),
           cp(resolve(output, "assets"), resolve(client, "assets"), { recursive: true }),
         ]);
       },
