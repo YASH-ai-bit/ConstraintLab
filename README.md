@@ -12,6 +12,8 @@ The project intentionally focuses on one complete, inspectable loop:
 4. Inspect the resulting Gantt chart or deterministic infeasibility facts.
 5. Review every action in a versioned audit timeline.
 
+**Public hosted build:** [constraint-lab.netlify.app](https://constraint-lab.netlify.app) 
+
 **Private hosted build:** [constraintlab-factory-scheduling.y62193312.chatgpt.site](https://constraintlab-factory-scheduling.y62193312.chatgpt.site) (owner sign-in required)
 
 ---
