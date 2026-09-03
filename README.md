@@ -58,6 +58,75 @@ There is no `agentUpdateJob`, agent-only model, UI-only draft, or solver-owned a
 
 ---
 
+## How it works
+
+The complete request lifecycle can be understood in eight short steps:
+
+1. **The human describes an operational goal.** This can happen through the visual interface or as a natural-language request to an agent, such as making a machine unavailable for two hours.
+2. **The agent discovers ConstraintLab's WebMCP tools.** Instead of guessing which buttons to click, it receives nine documented operations with explicit input schemas.
+3. **The agent reads before it writes.** `get_problem_state` returns the current jobs, resources, constraints, objective, solve status, and model version, including the stable IDs required by later calls.
+4. **Intent becomes a typed action.** The agent calls a narrow tool such as `add_constraint`; it cannot send arbitrary mathematical expressions or directly edit the schedule.
+5. **The request passes two validation boundaries.** Zod validates the tool arguments, then the shared domain action validates references, ranges, duplicate IDs, and precedence cycles again.
+6. **The canonical model changes once.** The same Zustand action used by the React UI updates the shared state, increments `modelVersion`, and appends an audit event identifying the actor and change.
+7. **A real solver computes the schedule.** `solve_problem` snapshots the model, compiles it into CPLEX LP text, and sends it to HiGHS WebAssembly inside a Web Worker.
+8. **The human receives inspectable results.** A successful result becomes Gantt assignments. An infeasible result is passed to deterministic typed checkers. Either result records its solved model version and appears in the audit timeline.
+
+```text
+Human intent
+    │
+    ▼
+ChatGPT / browser agent
+    │ discovers and calls typed WebMCP tools
+    ▼
+Zod schema validation
+    │
+    ▼
+Shared domain action ◀──────── React UI uses this same action
+    │
+    ├── update canonical state
+    ├── increment modelVersion
+    └── append audit event
+    │
+    ▼ solve immutable snapshot
+LP model compiler
+    │ CPLEX LP-format text
+    ▼
+HiGHS WebAssembly in a Web Worker
+    │
+    ├── optimal / feasible ──▶ translated assignments ──▶ Gantt chart
+    └── infeasible ──────────▶ typed conflict checker ──▶ conflict facts
+```
+
+### Architecture components
+
+| Component | What it does | Why it exists |
+| --- | --- | --- |
+| **Human interface** | Lets a person inspect jobs, edit supported fields, run the solver, and review results visually. | The human remains responsible for goals, trade-offs, and acceptance. |
+| **Browser agent / ChatGPT** | Converts a natural-language request into a sequence of WebMCP calls. | Natural language is useful for expressing intent, but it is not used as the optimization engine. |
+| **WebMCP registration** | Publishes nine structured tools through `document.modelContext.registerTool(...)`. | The agent receives a stable application API instead of relying on fragile DOM automation. |
+| **Tool definitions** | Provide tool names, descriptions, JSON Schemas, titles, and read-only annotations. | Good metadata helps an agent select the correct operation and construct valid arguments. |
+| **Zod schemas** | Check field types, allowed values, time ranges, and accepted object shapes. | Malformed or unsupported agent input is rejected before it reaches application logic. |
+| **Tool handlers** | Adapt WebMCP calls into existing domain actions and format success or failure responses. | They are intentionally thin so the agent cannot acquire a second mutation path. |
+| **Domain actions** | Implement operations such as `addJob()`, `updateJob()`, `addConstraint()`, and `solveProblem()`. | This is the only place where application state may be changed by either a human or agent. |
+| **Canonical Zustand state** | Holds jobs, resources, typed constraints, objective, selections, solve state, and audit history. | Every part of the application reads the same source of truth. |
+| **Model versioning** | Increments `modelVersion` after structural changes and records `solvedModelVersion` on results. | The UI and agent can detect and reject schedules produced for an older model. |
+| **LP model compiler** | Converts the domain model into explicit CPLEX `.lp` text with assignment, ordering, timing, and downtime equations. | HiGHS requires a mathematical model; keeping compilation separate makes it testable and inspectable. |
+| **Web Worker** | Loads the solver and performs optimization outside the browser's main UI thread. | The interface remains responsive while the WebAssembly solver is running. |
+| **HiGHS** | Solves the mixed-integer linear program and returns status, objective value, and primal variable values. | It is the deterministic authority that decides whether a schedule is valid and optimal. |
+| **Solution translator** | Maps encoded solver variables back into job IDs, resource IDs, start times, and end times. | Solver output becomes understandable application data without leaking solver internals into React. |
+| **Infeasibility analyzer** | Checks typed assignments, deadlines, precedence, earliest starts, locked starts, and availability windows. | It produces specific conflict facts without asking an LLM to guess why the model failed. |
+| **Audit timeline** | Stores actor, version transition, summary, input, and output for each meaningful action. | Human and agent activity remains transparent and reviewable without exposing hidden reasoning. |
+| **Developer panel** | Displays WebMCP availability, registered tools, and recent invocation timings. | It makes tool discovery and browser-integration problems visible during development and demonstrations. |
+
+### Where trust is placed
+
+- **The language model is trusted to propose actions, not to validate or optimize the schedule.**
+- **Domain actions are trusted to protect application invariants.** Tool-level validation is helpful, but it is not the final correctness boundary.
+- **HiGHS is trusted to solve the compiled MILP.** ConstraintLab translates its result; it does not replace it with generated output.
+- **The deterministic conflict analyzer is trusted only for its implemented typed checks.** When it cannot isolate a local conflict, it says so explicitly.
+
+---
+
 ## Product walkthrough
 
 ConstraintLab is a desktop-first, single-screen workspace with six focused views:
